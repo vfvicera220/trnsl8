@@ -1,8 +1,8 @@
 import tkinter as tk
+from tkinter import ttk
 import numpy as np
 from paddleocr import PaddleOCR
 from deep_translator import GoogleTranslator
-from deep_translator import DeeplTranslator
 from windowcapture import WindowCapture
 import configparser
 from pynput import keyboard
@@ -50,25 +50,21 @@ def capture_and_display_image(width, height):
     canvas.config(bg="black")  # Set the background color to black to allow transparency
     canvas.pack()
 
-    # Display the image on the canvas
-    # canvas.create_image(0, 0, anchor=tk.NW, image=screenshot)
-
     for idx in range(len(result)):
-            res = result[idx]
-            for line in res:
-                bbox = line[0]
-                text = line[1][0]
+        res = result[idx]
+        for line in res:
+            bbox = line[0]
+            text = line[1][0]
 
-                translated_text = GoogleTranslator(target='en').translate(text)
-                # # translated_text = DeeplTranslator(api_key='ede3a8cd-d467-4ad9-808d-87e317dbf74d:fx', source='zh', target='en').translate(text)
+            translated_text = GoogleTranslator(target='en').translate(text)
 
-                # Draw rectangle
-                canvas.create_rectangle(bbox[0][0], bbox[0][1], bbox[2][0], bbox[2][1], fill="#1C1C1C")
-                # Calculate center of the rectangle
-                center_x = (bbox[0][0] + bbox[2][0]) / 2
-                center_y = (bbox[0][1] + bbox[2][1]) / 2
-                # Draw text inside the rectangle
-                canvas.create_text(center_x, center_y, text=translated_text, fill="white")
+            # Draw rectangle
+            canvas.create_rectangle(bbox[0][0], bbox[0][1], bbox[2][0], bbox[2][1], fill="#4caf50")
+            # Calculate center of the rectangle
+            center_x = (bbox[0][0] + bbox[2][0]) / 2
+            center_y = (bbox[0][1] + bbox[2][1]) / 2
+            # Draw text inside the rectangle
+            canvas.create_text(center_x, center_y, text=translated_text, fill="white")
 
 def create_overlay():
     global overlay_window
@@ -112,7 +108,7 @@ trigger_translate_key = config.get('Shortcuts', 'trigger_translate')
 # Create the main application window
 root = tk.Tk()
 root.title("trnsl8 v1.0.0")
-root.geometry(f"250x150+50+50")
+root.geometry("250x170+50+50")
 root.resizable(False, False)  # Prevent resizing
 root.iconbitmap("icon.ico")  # Add icon
 
@@ -121,9 +117,13 @@ listener = keyboard.Listener(on_press=on_key_event)
 listener.start()
 
 # Create buttons for translate and clear
-button_translate = tk.Button(root, text="Translate", command=on_button_click)
+style = ttk.Style()
+style.theme_use('clam')  # Use the 'clam' theme for a flatter appearance
+style.configure('TButton', foreground='white', background='#4caf50', font=('Roboto', 12))  # Roboto is a Material Design font
+
+button_translate = ttk.Button(root, text="Translate", command=on_button_click)
 button_translate.pack(pady=10)
-button_clear = tk.Button(root, text="Clear", command=close_overlay)
+button_clear = ttk.Button(root, text="Clear", command=close_overlay)
 button_clear.pack(pady=10)
 
 wincap = WindowCapture('ODIN')
