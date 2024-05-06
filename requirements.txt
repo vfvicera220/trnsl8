@@ -1,0 +1,6 @@
+paddleocr
+paddlepaddle
+opencv-python
+pywin32
+deep_translator
+pynput
