@@ -7,12 +7,24 @@ from windowcapture import WindowCapture
 import configparser
 from pynput import keyboard
 import threading
+import requests
+import winreg
 
 # Global variable to track the overlay window
 overlay_window = None
 canvas = None
 thread = None  # Global variable to hold the thread object
 
+
+def get_machine_guid():
+    try:
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography", 0, winreg.KEY_READ)
+        value, _ = winreg.QueryValueEx(key, "MachineGuid")
+        return value
+    except Exception as e:
+        print("Error:", e)
+        return None
+    
 def on_key_event(key):
     global overlay_window, thread
     
@@ -108,17 +120,41 @@ def close_overlay():
 config = configparser.ConfigParser()
 config.read('config.ini')
 trigger_translate_key = config.get('Shortcuts', 'trigger_translate')
+license_key = config.get('Licensing', 'license_key')
+src_language = config.get('Detection', 'src_language')
+
+url = "http://localhost:3000/verify_license"
+api_key = "2024_verify_trnsl8"
+headers = {
+    "api_key": api_key,
+    "Content-Type": "application/json"  # Assuming JSON content, adjust as needed
+}
+machine_guid = get_machine_guid()
+payload = {
+    "license_key": license_key,
+    "machine_identifier": machine_guid
+}
+response = requests.post(url, json=payload, headers=headers)
+is_licensed = response.json()['status'] == 'valid'
+app_height = 150
+src_lang = "ch"
+if is_licensed:
+    valid_until = response.json()['valid_until']
+    app_height = 190
+    src_lang = src_language
+
 
 # Create the main application window
 root = tk.Tk()
 root.title("trnsl8 v1.0.0")
-root.geometry(f"250x150+50+50")
+root.geometry(f"250x{app_height}+50+50")
 root.resizable(False, False)  # Prevent resizing
 root.iconbitmap("icon.ico")  # Add icon
 
 # Create a listener for keyboard events
 listener = keyboard.Listener(on_press=on_key_event)
-listener.start()
+if is_licensed:
+    listener.start()
 
 # Create buttons for translate and clear
 button_translate = tk.Button(root, text="Translate", command=on_button_click)
@@ -129,10 +165,12 @@ button_clear.pack(pady=10)
 wincap = WindowCapture('ODIN')
 
 # Initialize paddleocr reader
-ocr = PaddleOCR(use_angle_cls=True, lang='ch')
+ocr = PaddleOCR(use_angle_cls=True, lang=src_lang)
 
-# Add copyright label at the bottom
-attribution_label = tk.Label(root, text="Icon by iconsax\nwww.flaticon.com/free-icons/translation ", fg="gray")
+if is_licensed:
+    license_label = tk.Label(root, text="Licensed. Expiry: " + valid_until, fg="gray")
+    license_label.pack(side="bottom")
+attribution_label = tk.Label(root, text="Icon by iconsax@www.flaticon.com ", fg="gray")
 attribution_label.pack(side="bottom")
 copyright_label = tk.Label(root, text="© 2024 trnsl8. All rights reserved.", fg="gray")
 copyright_label.pack(side="bottom")
