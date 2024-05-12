@@ -9,12 +9,18 @@ from pynput import keyboard
 import threading
 import requests
 import winreg
+import time
+import os
+
+curpath = os.path.dirname(os.path.realpath(__file__))
+cfgpath = os.path.join(curpath, "config.ini")
+icopath = os.path.join(curpath, "icon.ico")
 
 # Global variable to track the overlay window
 overlay_window = None
 canvas = None
 thread = None  # Global variable to hold the thread object
-
+is_licensed = False
 
 def get_machine_guid():
     try:
@@ -48,6 +54,10 @@ def start_thread():
         thread.start()
 
 def capture_and_display_image(width, height):
+    global is_licensed
+    if is_licensed == False:
+        time.sleep(10)
+    
     global canvas
     # get an updated image of the game
     screenshot = wincap.get_screenshot()
@@ -89,7 +99,7 @@ def create_overlay():
     close_overlay()
     
     overlay_window = tk.Toplevel(root)
-    overlay_window.title("trnsl8 v1.0.0")
+    overlay_window.title("Trnsl8 v1.0.0")
 
     # Set window dimensions
     window_info = wincap.get_window_info()
@@ -118,12 +128,12 @@ def close_overlay():
             canvas.destroy()
 
 config = configparser.ConfigParser()
-config.read('config.ini')
+config.read(cfgpath)
 trigger_translate_key = config.get('Shortcuts', 'trigger_translate')
 license_key = config.get('Licensing', 'license_key')
 src_language = config.get('Detection', 'src_language')
 
-url = "http://localhost:3000/verify_license"
+url = "http://kx-labs.com:3000/verify_license"
 api_key = "2024_verify_trnsl8"
 headers = {
     "api_key": api_key,
@@ -146,10 +156,10 @@ if is_licensed:
 
 # Create the main application window
 root = tk.Tk()
-root.title("trnsl8 v1.0.0")
+root.title("Trnsl8 v1.0.0")
 root.geometry(f"250x{app_height}+50+50")
 root.resizable(False, False)  # Prevent resizing
-root.iconbitmap("icon.ico")  # Add icon
+root.iconbitmap(icopath)  # Add icon
 
 # Create a listener for keyboard events
 listener = keyboard.Listener(on_press=on_key_event)
@@ -157,9 +167,9 @@ if is_licensed:
     listener.start()
 
 # Create buttons for translate and clear
-button_translate = tk.Button(root, text="Translate", command=on_button_click)
+button_translate = tk.Button(root, text="Translate", command=on_button_click, bg="#3498db", fg="white", font=("Arial", 12), bd=0, borderwidth=0, highlightthickness=0, width=10, relief=tk.FLAT)
 button_translate.pack(pady=10)
-button_clear = tk.Button(root, text="Clear", command=close_overlay)
+button_clear = tk.Button(root, text="Clear", command=close_overlay, bg="#e74c3c", fg="white", font=("Arial", 12), bd=0, borderwidth=0, highlightthickness=0, width=10, relief=tk.FLAT)
 button_clear.pack(pady=10)
 
 wincap = WindowCapture('ODIN')
@@ -170,9 +180,12 @@ ocr = PaddleOCR(use_angle_cls=True, lang=src_lang)
 if is_licensed:
     license_label = tk.Label(root, text="Licensed. Expiry: " + valid_until, fg="gray")
     license_label.pack(side="bottom")
+else:
+    license_label = tk.Label(root, text="Unlicensed.", fg="gray")
+    license_label.pack(side="bottom")
 attribution_label = tk.Label(root, text="Icon by iconsax@www.flaticon.com ", fg="gray")
 attribution_label.pack(side="bottom")
-copyright_label = tk.Label(root, text="© 2024 trnsl8. All rights reserved.", fg="gray")
+copyright_label = tk.Label(root, text="© 2024 kx-labs.com", fg="gray")
 copyright_label.pack(side="bottom")
 
 root.mainloop()
