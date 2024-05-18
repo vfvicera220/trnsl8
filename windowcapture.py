@@ -14,12 +14,12 @@ class WindowCapture:
     offset_y = 0
 
     # constructor
-    def __init__(self, window_name):
+    def __init__(self, hwnd):
+        self.hwnd = hwnd
         # find the handle for the window we want to capture
-        self.hwnd = win32gui.FindWindow('UnrealWindow', None)
         if not self.hwnd:
-            raise Exception('Window not found: {}'.format(window_name))
-
+            raise Exception('No window selected.')
+        
         # get the window size
         window_rect = win32gui.GetWindowRect(self.hwnd)
         self.w = window_rect[2] - window_rect[0]
@@ -70,12 +70,12 @@ class WindowCapture:
     # to be merged with __init__
     def get_window_info(self):
         # Find the window handle by title
-        handle = win32gui.FindWindow('UnrealWindow', None)
-        if handle == 0:
+        hwnd = self.hwnd
+        if hwnd == 0:
             return None
 
         # Get window position and dimensions
-        window_rect = win32gui.GetWindowRect(handle)
+        window_rect = win32gui.GetWindowRect(hwnd)
         width = window_rect[2] - window_rect[0]
         height = window_rect[3] - window_rect[1]
 
