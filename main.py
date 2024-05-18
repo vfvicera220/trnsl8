@@ -286,6 +286,7 @@ class Trnsl8App:
         self.create_overlay()
 
     def refresh_window_list(self):
+        self.window_list = []
         win32gui.EnumWindows(self.winEnumHandler, None)
         self.window_dropdown['values'] = [title for hwnd, title in self.window_list]
 
@@ -385,12 +386,14 @@ class Trnsl8App:
             if window_info:
                 left, top, width, height = window_info
                 self.overlay_window.geometry(f"{width}x{height}+{left}+{top}")
-                self.overlay_window.attributes("-topmost", True)
                 self.overlay_window.configure(background="black")
                 self.overlay_window.wm_attributes("-transparentcolor", "black")
                 self.overlay_window.config(bg="black")
 
                 self.capture_and_display_image(width, height)
+                # commenting code below as it causes the window to spawn
+                # in wrong position
+                # self.overlay_window.attributes("-topmost", False)
             else:
                 messagebox.showinfo("Info", "Window not found.")
 
