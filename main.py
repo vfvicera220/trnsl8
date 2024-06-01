@@ -56,7 +56,7 @@ class Trnsl8App:
         self.language_list_from = [
             ("English", "en"),
             ("Chinese (Simplified)", "ch"),
-            ("Chinese (Traditional)", "ch_tra"),
+            ("Chinese (Traditional)", "chinese_cht"),
             ("Japanese", "japan"),
             ("Korean", "korean")
         ]
@@ -265,6 +265,7 @@ class Trnsl8App:
         self.ocr = PaddleOCR(
             use_angle_cls=True,
             lang=self.src_lang,
+            use_gpu=False,
             cls_model_dir="data_files\\cls\\" + self.src_lang,
             det_model_dir="data_files\\det\\" + self.src_lang,
             rec_model_dir="data_files\\rec\\" + self.src_lang
@@ -297,7 +298,7 @@ class Trnsl8App:
 
     def capture_and_display_image(self, width, height):
         if not self.is_licensed:
-            time.sleep(10)
+            time.sleep(20)
 
         screenshot = self.wincap.get_screenshot()
         image_np = np.array(screenshot)
@@ -308,14 +309,19 @@ class Trnsl8App:
         self.canvas.config(bg="black")
         self.canvas.pack()
 
+        # translate texts in batch
+        texts = [line[1][0] for res in result for line in res]
+        translated_texts = GoogleTranslator(target=self.trg_lang).translate_batch(texts)
+        
         for idx in range(len(result)):
             res = result[idx]
-            for line in res:
+            for index, line in enumerate(res):
                 bbox = line[0]
-                text = line[1][0]
 
-                translated_text = GoogleTranslator(target=self.trg_lang).translate(text)
+                translated_text = translated_texts[index]
                 self.canvas.create_rectangle(bbox[0][0], bbox[0][1], bbox[2][0], bbox[2][1], fill="#1C1C1C")
+                # debug code for bounding box
+                # self.canvas.create_rectangle(bbox[0][0], bbox[0][1], bbox[2][0], bbox[2][1], outline="#008000")
                 center_x = (bbox[0][0] + bbox[2][0]) / 2
                 center_y = (bbox[0][1] + bbox[2][1]) / 2
                 self.canvas.create_text(center_x, center_y, text=translated_text, fill="white")
