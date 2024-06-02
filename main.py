@@ -14,6 +14,8 @@ import requests
 import sv_ttk
 import winreg
 import time
+# from datetime import datetime
+import json
 import os
 
 class Trnsl8App:
@@ -22,7 +24,8 @@ class Trnsl8App:
         self.cfgpath = os.path.join(self.curpath, "config.ini")
         self.icopath = os.path.join(self.curpath, "icon.ico")
         self.load_config()
-
+        self.cachepath = os.path.join(self.curpath, "data_files", "cache", self.cfg_src_language + "_" + self.cfg_to_language, "translation_cache.json")
+        
         self.licensing_url = "http://kx-labs.com:3000/verify_license"
         self.api_key = "2024_verify_trnsl8"
 
@@ -73,10 +76,38 @@ class Trnsl8App:
 
         self.setup_ocr()
         self.get_license_info()
+        self.init_cache()
         self.setup_window()
 
         if self.is_licensed:
             self.setup_keyboard_listener()
+
+    def init_cache(self):
+        self.translation_cache = {}
+        try:
+            # Try to open the file in exclusive creation mode
+            with open(self.cachepath, "x", encoding="utf-8") as f:
+                # If the file doesn't exist, this block will execute
+                # You can do additional setup here if needed
+                json.dump({'dummy': 'dummy'}, f, ensure_ascii=False)
+                print("Cache file created successfully.")
+        except FileExistsError:
+            # If the file already exists, this block will execute
+            # You can handle the situation as per your requirements
+            print("File already exists.")
+            # Load cache from file if it exists
+            if os.path.exists(self.cachepath):
+                with open(self.cachepath, "r", encoding="utf-8") as f:
+                    self.translation_cache = json.load(f)
+        except FileNotFoundError:
+            # If any of the directories leading up to the file don't exist, this block will execute
+            # You might want to create the directories before creating the file
+            os.makedirs(os.path.dirname(self.cachepath), exist_ok=True)
+            print("Directories created. Cache file created successfully.")
+            with open(self.cachepath, "x", encoding="utf-8") as f:
+                # You can do additional setup here if needed
+                json.dump({'dummy': 'dummy'}, f, ensure_ascii=False)
+                print("Cache file created successfully.")
 
     def winEnumHandler(self, hwnd, ctx):
         if win32gui.IsWindowVisible(hwnd):
@@ -101,6 +132,8 @@ class Trnsl8App:
                 with open(self.cfgpath, 'w') as configfile:    # save
                     self.config.write(configfile)
                 self.setup_ocr()
+                self.cachepath = os.path.join(self.curpath, "data_files", "cache", key + "_" + self.cfg_to_language, "translation_cache.json")
+                self.init_cache()
 
     def on_select_to_language(self, event):
         selected_lang = self.to_lng_dropdown.get()
@@ -110,6 +143,8 @@ class Trnsl8App:
                 self.config['Detection']['to_language'] = key
                 with open(self.cfgpath, 'w') as configfile:    # save
                     self.config.write(configfile)
+                self.cachepath = os.path.join(self.curpath, "data_files", "cache",  self.cfg_src_language + "_" + key, "translation_cache.json")
+                self.init_cache()
 
     def on_select_translate_key(self, event):
         if not self.is_licensed:
@@ -239,7 +274,10 @@ class Trnsl8App:
         self.to_lng_dropdown.current(self.get_lang_to_key_index())
         self.to_lng_dropdown.bind("<<ComboboxSelected>>", self.on_select_to_language)
 
-        self.button_translate = ttk.Button(self.root, text="Translate", command=self.on_button_click, style='Accent.TButton')
+        self.progress_bar = ttk.Progressbar(self.root, orient="horizontal", length=300, mode="indeterminate",style="custom.Horizontal.TProgressbar")
+        self.progress_bar.pack(side="bottom")
+
+        self.button_translate = ttk.Button(self.root, text="Translate", command=self.start_thread, style='Accent.TButton')
         self.button_translate.place(x=123, y=155 + padding)
 
         self.button_clear = ttk.Button(self.root, text="Clear", command=self.close_overlay)
@@ -280,7 +318,7 @@ class Trnsl8App:
         if self.cfg_trigger_translate_key == key_char:
             self.start_thread()
 
-        if self.cfg_trigger_clear_key == key_char and not self.thread.is_alive():
+        if self.cfg_trigger_clear_key == key_char and self.thread is None or not self.thread.is_alive():
             self.close_overlay()
 
     def on_button_click(self):
@@ -293,7 +331,7 @@ class Trnsl8App:
 
     def start_thread(self):
         if self.thread is None or not self.thread.is_alive():
-            self.thread = threading.Thread(target=self.create_overlay)
+            self.thread = threading.Thread(target=self.create_overlay, daemon=True)
             self.thread.start()
 
     def capture_and_display_image(self, width, height):
@@ -303,28 +341,47 @@ class Trnsl8App:
         screenshot = self.wincap.get_screenshot()
         image_np = np.array(screenshot)
         result = self.ocr.ocr(image_np, cls=True)
-
+        # print(str(datetime.now()) + " Text detection done! Translating...")
         self.canvas = tk.Canvas(self.overlay_window, width=width, height=height)
         self.canvas.configure(bg='white', highlightthickness=0)
         self.canvas.config(bg="black")
-        self.canvas.pack()
 
         # translate texts in batch
         texts = [line[1][0] for res in result for line in res]
-        translated_texts = GoogleTranslator(target=self.trg_lang).translate_batch(texts)
-        
+
+        # Filter out texts that are already translated
+        untranslated_texts = [text for text in texts if text not in self.translation_cache]
+        # print("Untranslated texts: ")
+        # print(untranslated_texts)
+
+        # Translate only the untranslated texts and store them in the cache
+        if untranslated_texts:
+            translated_texts = GoogleTranslator(target=self.trg_lang).translate_batch(untranslated_texts)
+            for original_text, translated_text in zip(untranslated_texts, translated_texts):
+                if original_text not in self.translation_cache:
+                    self.translation_cache[original_text] = translated_text
+
+        # Write the updated cache to file
+        with open(self.cachepath, "w", encoding="utf-8") as f:
+            json.dump(self.translation_cache, f, ensure_ascii=False)
+        # print(str(datetime.now()) + " Translation done!")
         for idx in range(len(result)):
             res = result[idx]
             for index, line in enumerate(res):
                 bbox = line[0]
 
-                translated_text = translated_texts[index]
+                # Retrieve translated text from cache
+                original_text = texts[index]
+                translated_text = self.translation_cache.get(original_text, "")
+
                 self.canvas.create_rectangle(bbox[0][0], bbox[0][1], bbox[2][0], bbox[2][1], fill="#1C1C1C")
                 # debug code for bounding box
                 # self.canvas.create_rectangle(bbox[0][0], bbox[0][1], bbox[2][0], bbox[2][1], outline="#008000")
                 center_x = (bbox[0][0] + bbox[2][0]) / 2
                 center_y = (bbox[0][1] + bbox[2][1]) / 2
                 self.canvas.create_text(center_x, center_y, text=translated_text, fill="white")
+        self.canvas.pack()
+        self.progress_bar.stop()
 
     def save_api_key(self):
         self.cfg_license_key = self.sv.get()
@@ -334,6 +391,7 @@ class Trnsl8App:
         self.get_license_info()
         if self.is_licensed:
             self.license_label_string.set("Licensed. Expiry: " + self.valid_until)
+            self.setup_keyboard_listener()
         else:
             self.license_label_string.set("Unlicensed.")
         
@@ -382,6 +440,7 @@ class Trnsl8App:
         if self.selected_hwnd == None:
             messagebox.showinfo("Info", "No application selected.")
         else:
+            self.progress_bar.start()
             self.close_overlay()
 
             self.overlay_window = tk.Toplevel(self.root)
@@ -395,7 +454,6 @@ class Trnsl8App:
                 self.overlay_window.configure(background="black")
                 self.overlay_window.wm_attributes("-transparentcolor", "black")
                 self.overlay_window.config(bg="black")
-
                 self.capture_and_display_image(width, height)
                 # commenting code below as it causes the window to spawn
                 # in wrong position
