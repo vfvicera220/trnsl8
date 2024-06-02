@@ -153,3 +153,4 @@ cython_debug/
 
 output
 release
+data_files/cache/*
