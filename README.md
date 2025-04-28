@@ -10,3 +10,5 @@
 
 # Credits
 - Translation icons created by iconsax - Flaticon https://www.flaticon.com/free-icons/translation
+
+# DEPRECATED
